@@ -1,0 +1,17 @@
+
+parameters:
+  - name: agentPool
+    type: string
+    default: 'my_team_dev'
+    values:
+      - 'my_team_prod'
+      - 'my_team_qa'
+      - 'my_team_dev'
+      
+pool:
+    ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+      name: ${{ parameters.agentPool }}
+    ${{ if startsWith(variables['Build.SourceBranch'], 'refs/heads/development/') }}:
+      name: ${{ parameters.agentPool }}
+    ${{ if not(eq(variables['Build.SourceBranch'], 'refs/heads/main')) && not(eq(variables['Build.SourceBranch'], 'refs/heads/development'))) }}:
+      name: ${{ parameters.agentPool }}

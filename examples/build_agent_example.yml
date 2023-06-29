@@ -1,0 +1,17 @@
+name: my pipeline
+
+trigger: none
+
+includes:
+  template: build_agent_pool.yml
+
+stages:
+  - stage: one
+    jobs:
+    - job: test01
+      steps:
+      - task: Bash@3
+        inputs:
+          targetType: 'inline'
+          script: |
+            echo "Hello World"
