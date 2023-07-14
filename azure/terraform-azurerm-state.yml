@@ -8,6 +8,12 @@ parameters:
     displayName: "Name of the connected service to use for the ARM deployment."
     type: string
     default: armTerraformStatefileDEV
+
+  - name: connectedServiceNameDeployment
+    displayName: "Name of the connected service to use for the ARM deployment."
+    type: string
+    default: armTerraformDeploymentDEV
+
   # - name: dockerRegistryServiceConnection
   #   displayName: "Name of the connected service to use to connect to the Docker (ACR) registry of the same name."
   #   type: string
@@ -33,6 +39,7 @@ trigger: none
 
 variables:
   connectedServiceNameARM: "${{ parameters.connectedServiceNameARM }}"
+  connectedServiceNameDeployment: "${{ parameters.connectedServiceNameDeployment }}"
   # dockerRegistryServiceConnection: "${{ parameters.dockerRegistryServiceConnection }}"
   # dockerPreCommitRegistry: "$(dockerRegistryServiceConnection).azurecr.io"
   # dockerPreCommitImageTag: "${{ parameters.dockerPreCommitImageTag }}"
@@ -40,10 +47,14 @@ variables:
   # dockerfileDirectoryPath: "$(Build.StagingDirectory)"
   # dockerfileName: "Dockerfile"
   artifactName: "$(Build.BuildNumber)"
+  
+  # TODO: convert to paraparameters
   terraformStateResourceGroupName: rg-tf-state-dev
   terraformStateStorageAccountName: stterraformstatedev01
   terraformStateBlobContainerName: template-dev
   terraformPlanBlobContainerName: template-dev
+  ARM_USE_AZUREAD: true
+  ARM_DISABLE_TERRAFORM_PARTNER_ID: true
 
 stages:
   - stage: validateCode
@@ -109,6 +120,7 @@ stages:
                 parameters:
                   environment: "${{ example }}"
                   connectedServiceNameARM: "$(connectedServiceNameARM)"
+                  connectedServiceNameDeployment: "$(connectedServiceNameDeployment)"
                   workingDirectoryPath: "$(System.ArtifactsDirectory)/$(artifactName)/examples/${{ example }}/"
                   enableTerraformRemoteBackend: "true"
                   enableTerraformPlanUpload: "true"
