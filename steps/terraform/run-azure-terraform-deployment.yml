@@ -68,26 +68,6 @@ parameters:
   
 
 steps:
-  # - task: AzureCLI@2
-  #   name: setSPNVariables_${{ parameters.environment }}
-  #   displayName: "Set service principal connection information as variables"
-  #   inputs:
-  #     azureSubscription: ${{ parameters.connectedServiceNameARM  }}
-  #     scriptLocation: inlineScript
-  #     scriptType: bash
-  #     workingDirectory: ${{ parameters.workingDirectoryPath }}
-  #     addSpnToEnvironment: true
-  #     inlineScript: |
-  #       subscriptionId=$(az account list --query "[?isDefault].id" -o tsv)
-  #       echo "##vso[task.setvariable variable=armClientId]$($env:servicePrincipalId)"
-  #       echo "##vso[task.setvariable variable=armClientSecret]$($env:servicePrincipalKey)"
-  #       echo "##vso[task.setvariable variable=armSubscriptionId]$subscriptionId"
-  #       echo "##vso[task.setvariable variable=armTenantId]$($env:tenantId)"
-        
-  #       echo "##vso[task.setvariable variable=ARM_SKIP_PROVIDER_REGISTRATION]true"
-  #       echo "##vso[task.setvariable variable=ARM_DISABLE_TERRAFORM_PARTNER_ID]true"
-
-
 
   - ${{ if eq(parameters.enableTerraformRemoteBackend, 'true') }}:
       - task: AzureCLI@2
@@ -100,15 +80,6 @@ steps:
           addSpnToEnvironment: true
           workingDirectory: ${{ parameters.workingDirectoryPath }}
           inlineScript: |
-            # ARM Vars to access the storage account dedicated to states and plan files
-            # subscriptionId=$(az account list --query "[?isDefault].id" -o tsv)
-            # export ARM_CLIENT_ID=$servicePrincipalId
-            # export ARM_CLIENT_SECRET=$servicePrincipalKey
-            # export ARM_SUBSCRIPTION_ID=$armSubscriptionId
-            # export ARM_TENANT_ID=$tenantId
-
-            # export ARM_USE_AZUREAD="true"
-            # export ARM_DISABLE_TERRAFORM_PARTNER_ID="true"
 
             printenv | sort
 
@@ -119,6 +90,7 @@ steps:
               -backend-config='container_name=${{ parameters.terraformStateBlobContainerName }}' \
               -backend-config='key=${{ parameters.terraformStatefileName }}'
 
+  # TODO: Add a task to use local init
   # - ${{ if eq(parameters.enableTerraformRemoteBackend, 'false') }}:
   #     - task: Bash@3
   #       name: terraformInitLocalBackend_${{ parameters.environment }}
@@ -159,27 +131,15 @@ steps:
           scriptType: bash
           workingDirectory: ${{ parameters.workingDirectoryPath }}
           inlineScript: |
-            az storage blob upload --auth-mode login --account-name ${{ parameters.terraformStateStorageAccountName }} -n ${{ parameters.terraformPlanFileName }} -f ./${{ parameters.terraformPlanFileName }} -c ${{ parameters.terraformPlanBlobContainerName }}
+            az storage blob upload \
+              --auth-mode login \
+              --account-name ${{ parameters.terraformStateStorageAccountName }} \
+              -n ${{ parameters.terraformPlanFileName }} \
+              -f ./${{ parameters.terraformPlanFileName }} \
+              -c ${{ parameters.terraformPlanBlobContainerName }}
+            
             rm -f ./${{ parameters.terraformPlanFileName }}
 
-  # - ${{ if eq(parameters.enableTerraformApplyLocal, 'true') }}:
-  #     - task: AzureCLI@2
-  #       name: terraformApplyCurrentPlan_${{ parameters.environment }}
-  #       displayName: "Terraform Apply - Local Plan"
-  #       inputs:
-  #         azureSubscription: ${{ parameters.connectedServiceNameARM  }}
-  #         scriptLocation: inlineScript
-  #         scriptType: pscore
-  #         workingDirectory: ${{ parameters.workingDirectoryPath }}
-  #         inlineScript: |
-  #           $env:ARM_CLIENT_ID="$(armClientId)"
-  #           $env:ARM_CLIENT_SECRET="$(armClientSecret)"
-  #           $env:ARM_SUBSCRIPTION_ID="$(armSubscriptionId)"
-  #           $env:ARM_TENANT_ID="$(armTenantId)"
-
-  #           terraform show ./${{ parameters.terraformPlanFileName }}
-
-  #           terraform apply ./${{ parameters.terraformPlanFileName }} -no-color
 
   - ${{ if eq(parameters.enableTerraformApplyRemote, 'true') }}:
       - task: AzureCLI@2
@@ -191,12 +151,18 @@ steps:
           scriptType: bash
           workingDirectory: ${{ parameters.workingDirectoryPath }}
           inlineScript: |
-            az storage blob download --auth-mode login --account-name ${{ parameters.terraformStateStorageAccountName }} -f ./${{ parameters.terraformPlanFileName }} -c ${{ parameters.terraformPlanBlobContainerName }} -n ${{ parameters.terraformPlanFileName }}
-            az storage blob delete \
+            az storage blob download \
               --auth-mode login \
               --account-name ${{ parameters.terraformStateStorageAccountName }} \
               --container-name ${{ parameters.terraformPlanBlobContainerName }} \
-              --name ${{ parameters.terraformPlanFileName }}
+              --name ${{ parameters.terraformPlanFileName }} \
+              --file ./${{ parameters.terraformPlanFileName }}
+            
+              # az storage blob delete \
+              # --auth-mode login \
+              # --account-name ${{ parameters.terraformStateStorageAccountName }} \
+              # --container-name ${{ parameters.terraformPlanBlobContainerName }} \
+              # --name ${{ parameters.terraformPlanFileName }}
 
       - task: AzureCLI@2
         name: terraformApplyRemotePlan_${{ parameters.environment }}
@@ -204,44 +170,32 @@ steps:
         inputs:
           azureSubscription: ${{ parameters.connectedServiceNameDeployment  }}
           scriptLocation: inlineScript
-          scriptType: pscore
+          scriptType: bash
           workingDirectory: ${{ parameters.workingDirectoryPath }}
           addSpnToEnvironment: true
           inlineScript: |
-            $env:ARM_CLIENT_ID="$($env:servicePrincipalId)"
-            $env:ARM_CLIENT_SECRET="$($env:servicePrincipalKey)"
-            $env:ARM_SUBSCRIPTION_ID="$(armSubscriptionId)"
-            $env:ARM_TENANT_ID="$(armTenantId)"
-
             terraform show ./${{ parameters.terraformPlanFileName }}
 
             terraform apply ./${{ parameters.terraformPlanFileName }} -no-color
 
-      # - task: TerraformCLI@0
-      #   displayName: "Terraform plan $(terraformFilesPath)"
-      #   inputs:
-      #     provider: 'azurerm'
-      #     command: 'apply'
-      #     environmentServiceName: $(environmentServiceConnection)
-      #     workingDirectory: ${{ parameters.workingDirectoryPath }}
-
-  - ${{ if eq(parameters.enableTerraformApplyDestroy, 'true') }}:
-      - task: AzureCLI@2
-        name: terraformDestroy_${{ parameters.environment }}
-        displayName: "Terraform Destroy"
-        inputs:
-          azureSubscription: ${{ parameters.connectedServiceNameARM  }}
-          scriptLocation: inlineScript
-          scriptType: pscore
-          workingDirectory: ${{ parameters.workingDirectoryPath }}
-          inlineScript: |
-            $env:ARM_CLIENT_ID="$(armClientId)"
-            $env:ARM_CLIENT_SECRET="$(armClientSecret)"
-            $env:ARM_SUBSCRIPTION_ID="$(armSubscriptionId)"
-            $env:ARM_TENANT_ID="$(armTenantId)"
-            if( "" -eq "${{ parameters.terraformParametersFilePath }}" ){
-              terraform apply -destroy -auto-approve -no-color -input=false
-            }
-            else{
-              terraform apply -destroy -var-file='${{ parameters.terraformParametersFilePath }}' -auto-approve -no-color -input=false
-            }
+  # TODO: Add terraform destroy scenario
+  # - ${{ if eq(parameters.enableTerraformApplyDestroy, 'true') }}:
+  #     - task: AzureCLI@2
+  #       name: terraformDestroy_${{ parameters.environment }}
+  #       displayName: "Terraform Destroy"
+  #       inputs:
+  #         azureSubscription: ${{ parameters.connectedServiceNameARM  }}
+  #         scriptLocation: inlineScript
+  #         scriptType: pscore
+  #         workingDirectory: ${{ parameters.workingDirectoryPath }}
+  #         inlineScript: |
+  #           $env:ARM_CLIENT_ID="$(armClientId)"
+  #           $env:ARM_CLIENT_SECRET="$(armClientSecret)"
+  #           $env:ARM_SUBSCRIPTION_ID="$(armSubscriptionId)"
+  #           $env:ARM_TENANT_ID="$(armTenantId)"
+  #           if( "" -eq "${{ parameters.terraformParametersFilePath }}" ){
+  #             terraform apply -destroy -auto-approve -no-color -input=false
+  #           }
+  #           else{
+  #             terraform apply -destroy -var-file='${{ parameters.terraformParametersFilePath }}' -auto-approve -no-color -input=false
+  #           }

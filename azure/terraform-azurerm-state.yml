@@ -48,7 +48,7 @@ variables:
   # dockerfileName: "Dockerfile"
   artifactName: "$(Build.BuildNumber)"
   
-  # TODO: convert to paraparameters
+  # TODO: Add coresponding parameters
   terraformStateResourceGroupName: rg-tf-state-dev
   terraformStateStorageAccountName: stterraformstatedev01
   terraformStateBlobContainerName: template-dev
